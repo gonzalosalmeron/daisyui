@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>daisyUI countdown: continuous layout work</title>
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@5" rel="stylesheet" type="text/css" />
+    <style>
+      body { font-family: system-ui, sans-serif; margin: 0; padding: 24px; max-width: 40rem; }
+      .clock { font-family: ui-monospace, monospace; font-size: 2.5rem; margin: 24px 0; }
+      fieldset { border: 0; padding: 0; margin: 16px 0; }
+      label { margin-right: 16px; }
+      code { background: #eee; padding: 0 4px; }
+
+      /* Proposed change: move the digits with transform instead of top. */
+      .proposed > *::before,
+      .proposed > *::after {
+        top: 0;
+        transition:
+          transform 1s cubic-bezier(1, 0, 0, 1),
+          width 0.2s ease-out 0.2s,
+          opacity 0.2s ease-out 0.2s;
+      }
+      .proposed > *::before { transform: translateY(calc(var(--first-digits) * -1em)); }
+      .proposed > *::after { transform: translateY(calc(var(--value-ones) * -1em)); }
+
+      /* Option 3: one real element per digit, moved with transform. Different markup. */
+      .strips { display: inline-flex; font-family: ui-monospace, monospace; font-size: 2.5rem; line-height: 1em; }
+      .digit { display: block; width: 1ch; height: 1.4em; margin: -0.2em 0; overflow: hidden; }
+      .strip { display: block; transition: transform 1s cubic-bezier(1, 0, 0, 1); will-change: transform; }
+      .strip > span { display: block; height: 1.4em; line-height: 1.4em; text-align: center; }
+
+      /* Same change with a shorter transition (0.3s instead of 1s). */
+      .proposed-fast > *::before,
+      .proposed-fast > *::after {
+        transition:
+          transform 0.3s cubic-bezier(1, 0, 0, 1),
+          width 0.2s ease-out 0.2s,
+          opacity 0.2s ease-out 0.2s;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Countdown keeps the page busy</h1>
+    <p>
+      The digits of <code>.countdown</code> move with a <code>top</code> transition of one second,
+      and the value changes every second, so a transition that touches layout is always running.
+    </p>
+
+    <fieldset>
+      <label><input type="radio" name="mode" value="current" checked /> current</label>
+      <label><input type="radio" name="mode" value="proposed" /> proposed (transform)</label>
+      <label><input type="radio" name="mode" value="proposed-fast" /> proposed, 0.3s</label>
+      <label><input type="radio" name="mode" value="elements" /> real elements per digit</label>
+      <label><input type="radio" name="mode" value="none" /> no countdown</label>
+    </fieldset>
+
+    <div class="clock">
+      <span class="countdown" id="clock">
+        <span id="minutes" style="--value: 12; --digits: 2" aria-live="polite">12</span>:<span id="seconds" style="--value: 34; --digits: 2" aria-live="polite">34</span>
+      </span>
+    </div>
+
+    <div class="clock">
+      <span class="strips" id="strips" style="display: none"></span>
+    </div>
+
+    <p>
+      To compare, record the page with Safari Web Inspector (Timelines, Layout &amp; Rendering) or
+      the Chrome Performance panel for a few seconds in each mode, and look at how often style
+      recalculation and layout run. You can also pick a mode from the address bar with
+      <code>?mode=current</code>, <code>?mode=proposed</code>, <code>?mode=proposed-fast</code>, <code>?mode=elements</code> or <code>?mode=none</code>.
+    </p>
+
+    <script>
+      var clock = document.getElementById('clock');
+      var total = 12 * 60 + 34;
+
+      var strips = document.getElementById('strips');
+      var cells = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map(function (n) { return '<span>' + n + '</span>'; }).join('');
+      strips.innerHTML = [0, 1].map(function () { return '<span class="digit"><span class="strip">' + cells + '</span></span>'; }).join('') +
+        ':' + [0, 1].map(function () { return '<span class="digit"><span class="strip">' + cells + '</span></span>'; }).join('');
+      var stripEls = strips.querySelectorAll('.strip');
+
+      function render() {
+        var m = Math.floor(total / 60), c = total % 60;
+        [Math.floor(m / 10), m % 10, Math.floor(c / 10), c % 10].forEach(function (digit, i) {
+          stripEls[i].style.transform = 'translateY(' + (-digit * 1.4) + 'em)';
+        });
+        var minutes = Math.floor(total / 60);
+        var seconds = total % 60;
+        document.getElementById('minutes').style.setProperty('--value', minutes);
+        document.getElementById('minutes').textContent = minutes;
+        document.getElementById('seconds').style.setProperty('--value', seconds);
+        document.getElementById('seconds').textContent = seconds;
+      }
+
+      function setMode(mode) {
+        clock.style.display = mode === 'none' || mode === 'elements' ? 'none' : '';
+        strips.style.display = mode === 'elements' ? '' : 'none';
+        clock.classList.toggle('proposed', mode === 'proposed' || mode === 'proposed-fast');
+        clock.classList.toggle('proposed-fast', mode === 'proposed-fast');
+      }
+
+      document.querySelectorAll('input[name=mode]').forEach(function (input) {
+        input.addEventListener('change', function () { setMode(input.value); });
+      });
+
+      var initial = new URLSearchParams(location.search).get('mode') || 'current';
+      document.querySelector('input[value="' + initial + '"]').checked = true;
+      setMode(initial);
+
+      setInterval(function () { total = total > 0 ? total - 1 : 12 * 60 + 34; render(); }, 1000);
+    </script>
+  </body>
+</html>
